@@ -10,8 +10,6 @@ from einops.layers.torch import Rearrange, Reduce
 from einops import rearrange, repeat
 
 
-
-# 增加数据扰动
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
@@ -45,9 +43,9 @@ class GCNLayer(nn.Module):
         H2 = self.BN(H1)
         H = torch.reshape(H2, (batch, l, c))
         D_hat = self.A_to_D_inv(A)
-        A_hat = torch.matmul(D_hat, torch.matmul(A, D_hat))  # 点乘
+        A_hat = torch.matmul(D_hat, torch.matmul(A, D_hat))  
         A_hat = I + A_hat
-        output = torch.matmul(A_hat, self.GCN_liner_out_1(H))  # 矩阵相乘
+        output = torch.matmul(A_hat, self.GCN_liner_out_1(H))  
         output = self.Activition(output)
         return output
 
@@ -58,31 +56,31 @@ class GraphAttentionLayer(nn.Module):
         self.num_heads = num_heads
         self.dropout = dropout
         self.attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads)
-        self.linear = nn.Linear(128, embed_dim)  # 确保输入维度正确
-        self.output_linear = nn.Linear(embed_dim, output_dim)  # 确保输出维度正确
+        self.linear = nn.Linear(128, embed_dim)  
+        self.output_linear = nn.Linear(embed_dim, output_dim)  
         self.dropout_layer = nn.Dropout(dropout)
         self.leaky_relu = nn.LeakyReLU(0.2)
 
     def forward(self, H, A):
         batch_size, nodes_count, feature_dim = H.size()
-        H = self.linear(H)  # [batch_size, nodes_count, embed_dim]
-        attention_weights = self.compute_attention_weights(H, A)  # [batch_size, nodes_count, nodes_count]
-        H = H.permute(1, 0, 2)  # [nodes_count, batch_size, embed_dim]
-        attention_weights = attention_weights.unsqueeze(1)  # [batch_size, 1, nodes_count, nodes_count]
+        H = self.linear(H)  
+        attention_weights = self.compute_attention_weights(H, A)  
+        H = H.permute(1, 0, 2)  
+        attention_weights = attention_weights.unsqueeze(1)  
         attention_weights = attention_weights.expand(-1, self.num_heads, -1,
-                                                     -1)  # [batch_size, num_heads, nodes_count, nodes_count]
+                                                     -1)  
         attention_weights = attention_weights.reshape(batch_size * self.num_heads, nodes_count,
-                                                      nodes_count)  # [batch_size * num_heads, nodes_count, nodes_count]
+                                                      nodes_count)  
 
-        H, _ = self.attention(H, H, H, attn_mask=attention_weights)  # 传入注意力权重
-        H = H.permute(1, 0, 2)  # [batch_size, nodes_count, embed_dim]
+        H, _ = self.attention(H, H, H, attn_mask=attention_weights)  
+        H = H.permute(1, 0, 2)  
         H = self.output_linear(H)
         H = self.dropout_layer(H)
 
         return H
 
     def compute_attention_weights(self, H, A):
-        attention_scores = torch.bmm(H, H.transpose(1, 2))  # [batch_size, nodes_count, nodes_count]
+        attention_scores = torch.bmm(H, H.transpose(1, 2)) 
         attention_scores = self.leaky_relu(attention_scores)
         attention_weights = attention_scores * A
         attention_weights = F.softmax(attention_weights, dim=-1)
@@ -91,34 +89,32 @@ class GraphAttentionLayer(nn.Module):
 class GCN_Layer(nn.Module):
     def __init__(self, input_dim: int, gcn_out_dim: int, gat_out_dim: int, dropout: float = 0.6):
         super(GCN_Layer, self).__init__()
-        # 定义 GCN 部分
         self.gcn = GCNLayer(input_dim, gcn_out_dim)
-        # 新增
         self.residual = nn.Linear(input_dim, gcn_out_dim)
 
     def forward(self, H, A):
-        # residual = self.residual(H)
+
         H_gcn = self.gcn(H, A)
-        # H_gcn += residual
+
         return H_gcn
 
 class GAT_Layer(nn.Module):
     def __init__(self, input_dim: int, gcn_out_dim: int,  dropout: float = 0.6):
         super(GAT_Layer, self).__init__()
-        # 定义 GCN 部分
+
         self.gat = GraphAttentionLayer(input_dim, gcn_out_dim)
 
         self.residual = nn.Linear(128, gcn_out_dim)
     def forward(self, H, A):
-        # residual = self.residual(H)
+
         H_gat = self.gat(H, A)
-        # H_gat += residual
+
         return H_gat
 
 # 新eca
 class eca_layer(nn.Module):
     def __init__(self, channel, k_size=3):
-        # k_size = 5
+
         super(eca_layer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
@@ -134,8 +130,8 @@ class Spatial_attention(nn.Module):
     def __init__(self, in_channels, kernel_size=3, out_channels=1, stride=1, padding=1):
         super(Spatial_attention, self).__init__()
         self.conv1 = nn.Conv2d(2, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.conv2 = nn.Conv2d(out_channels, 1, kernel_size=1, stride=1, padding=0)  # 多尺度信息
-        self.bn = nn.BatchNorm2d(out_channels)  # 添加归一化层
+        self.conv2 = nn.Conv2d(out_channels, 1, kernel_size=1, stride=1, padding=0)  
+        self.bn = nn.BatchNorm2d(out_channels) 
         self.act = nn.Sigmoid()
 
     def forward(self, x):
@@ -143,7 +139,7 @@ class Spatial_attention(nn.Module):
         max_out, _ = torch.max(x, dim=1, keepdim=True)
         y = torch.cat((avg_out, max_out), 1)
         y = self.conv1(y)
-        y = self.conv2(y)  # 多尺度信息
+        y = self.conv2(y)  
         y = self.act(y)
         return x * y.expand_as(x)
 
@@ -218,7 +214,7 @@ class ResidualBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()  # 确保不使用 inplace=True
+        self.relu = nn.ReLU()  
         if in_channels != out_channels:
             self.downsample = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
@@ -250,7 +246,7 @@ class GSSA(nn.Module):
             heads=8,
             dim_head=16,
             dropout=0.,
-            group_spatial_size=3  # 调整为 3
+            group_spatial_size=3  
     ):
         super().__init__()
         self.heads = heads
@@ -287,9 +283,6 @@ class GSSA(nn.Module):
 
     def forward(self, x):
         batch, height, width, heads, gss = x.shape[0], *x.shape[-2:], self.heads, self.group_spatial_size
-        # print(height)
-        # print(width)
-        # print(heads)
         assert (height % gss) == 0 and (
                 width % gss) == 0, f'height {height} and width {width} must be divisible by group spatial size {gss}'
         num_groups = (height // gss) * (width // gss)
@@ -353,7 +346,7 @@ class GFNet(nn.Module):
         self.ca = eca_layer(64)
         self.sa = Spatial_attention(64, 3, 64, 1, 1)
         self.fc = nn.Linear(192, 64)
-        self.multi_scale_fusion = MultiScaleFusion(41, 64)  # 确保输入和输出通道数一致
+        self.multi_scale_fusion = MultiScaleFusion(41, 64)  
 
         self.to_latent = nn.Identity()
         self.BN = nn.BatchNorm1d(192)
@@ -363,7 +356,6 @@ class GFNet(nn.Module):
             nn.Linear(64, self.class_count)
         )
 
-        # 添加深度可分离卷积
         self.depthwise_separable_conv = DepthwiseSeparableBlock(128, 128, 3, stride=2, padding=1, num_layers=3)
         self.residual_block = ResidualBlock(128, 64)
         self.gssa = GSSA(dim=64, heads=num_heads, dim_head=16, dropout=0.1, group_spatial_size=3)
@@ -388,29 +380,27 @@ class GFNet(nn.Module):
             gcn_out1 = self.GAT_Branch[i](H, A)
 
 
-        gcn_out = gcn_out1.permute(0, 2, 1).unsqueeze(-1)  # [batch_size, 64, nodes_count, 1]
+        gcn_out = gcn_out1.permute(0, 2, 1).unsqueeze(-1)  
         gcn_out = self.depthwise_separable_conv(gcn_out)
         gcn_out = self.residual_block(gcn_out)
-        gcn_out = gcn_out.squeeze(-1).permute(0, 2, 1)  # [batch_size, nodes_count, 64]
-        gcn_out = self.multi_scale_fusion(gcn_out.unsqueeze(-1)).squeeze(-1).permute(0, 2, 1)  # [batch_size, nodes_count, 64 * 4]
-        # 调整输入特征的形状
-        gcn_out = gcn_out.unsqueeze(-1)  # [batch_size, nodes_count, 64 * 4, 1]
-        # 新加的
-        # 计算需要填充的高度
+        gcn_out = gcn_out.squeeze(-1).permute(0, 2, 1)  
+        gcn_out = self.multi_scale_fusion(gcn_out.unsqueeze(-1)).squeeze(-1).permute(0, 2, 1)  
+
+        gcn_out = gcn_out.unsqueeze(-1) 
+
         pad_height = (self.gssa.group_spatial_size - (
                     gcn_out.shape[1] % self.gssa.group_spatial_size)) % self.gssa.group_spatial_size
-        gcn_out = F.pad(gcn_out, (0, 0, 0, pad_height))  # 填充高度
-        # print("After height padding:", gcn_out.shape)
-        # 计算需要填充的宽度
+        gcn_out = F.pad(gcn_out, (0, 0, 0, pad_height))  
+
+
         pad_width = (self.gssa.group_spatial_size - (
                     gcn_out.shape[1] % self.gssa.group_spatial_size)) % self.gssa.group_spatial_size
         if pad_width > 0:
-            gcn_out = F.pad(gcn_out, (0, pad_width, 0, 0))  # 填充宽度
+            gcn_out = F.pad(gcn_out, (0, pad_width, 0, 0))  
 
         gcn_out = self.gssa(gcn_out)
-        gcn_out = gcn_out[:, :, :, 0]  # [64, 258, 64]
-        # 调整维度顺序
-        gcn_out = gcn_out.permute(0, 2, 1)  # [64, 285, 64, 3]
+        gcn_out = gcn_out[:, :, :, 0] 
+        gcn_out = gcn_out.permute(0, 2, 1)  
         gcn_out4 = gcn_out
 
         gcn_out2 = self.ca(gcn_out)
