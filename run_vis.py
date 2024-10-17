@@ -78,18 +78,13 @@ results = []
 
 
 def save_results(file_path, total_pos_train, total_pos_test,total_gt, y_train, y_test, pre_v, height, width, num_classes, best_OA2):
-    # 准备保存的数据
-    train_labels = np.zeros((height, width))  # 保存训练集坐标
-    # spectral.save_rgb(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_gt2.jpg"), gt_label.astype(int),
-    #                   colors=spectral.spy_colors)  # 总预测图
-    predict_map = total_gt
-    predict_error_map = np.zeros((height, width))  # 保存判断错误的点
-    predict_error_gt = np.zeros((height, width))  # 保存判断错误的点的真实标签
 
-    # # 绘制训练集所在的位置
-    # for index in range(len(total_pos_train)):
-    #     pos2d = total_pos_train[index]
-    #     train_labels[pos2d[0], pos2d[1]] = y_train[pos2d[0], pos2d[1]]
+    train_labels = np.zeros((height, width))  # 保存训练集坐标
+
+    predict_map = total_gt
+    predict_error_map = np.zeros((height, width)) 
+    predict_error_gt = np.zeros((height, width)) 
+
     for index in range(len(total_pos_train)):
         pos2d = total_pos_train[index]
         train_labels[pos2d[0], pos2d[1]] = y_train[index].item()  # 使用单个索引访问
@@ -105,17 +100,7 @@ def save_results(file_path, total_pos_train, total_pos_test,total_gt, y_train, y
     sio.savemat(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_pos2d.mat"),
                 {'pos2d_train': total_pos_train, "pos2d_test": total_pos_test, "class_train_num": [sum(y_train == i) for i in range(num_classes)]})
 
-    # spectral.save_rgb(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_trainsets_gt.jpg"), train_labels.astype(int), colors=spectral.spy_colors)  # 训练集位置图
-    # spectral.save_rgb(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_predict.jpg"), predict_map.astype(int), colors=spectral.spy_colors)  # 总预测图
-    # spectral.save_rgb(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_predict_error.jpg"), predict_error_map.astype(int), colors=spectral.spy_colors)  # 总预测失败图
-    # spectral.save_rgb(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_predict_error_gt.jpg"), predict_error_gt.astype(int), colors=spectral.spy_colors)  # 预测失败的地方的正确标签图
 
-    # plt.figure(figsize=(8, 8))
-    # plt.imshow(train_labels.astype(int), cmap='nipy_spectral')
-    # # plt.colorbar(label='Class ID')  # 显示颜色条以标识类别
-    # plt.axis('off')
-    # temp_image_path = '../可视化/res_recorder/In/gt'
-    # plt.savefig(temp_image_path, dpi=1800, bbox_inches='tight', pad_inches=0)
 
     '''
     viridis: 默认的颜色映射，适用于大多数情况，具有良好的视觉效果和可读性。
@@ -190,11 +175,9 @@ for run in range(args.num_run):
     if not os.path.isdir(file_path):
         os.mkdir(file_path)
 
-    # spectral.save_rgb(os.path.join(file_path, f"ps{args.patches}_oa{best_OA2:.2f}_gt1.jpg"), gt_label.astype(int), colors=spectral.spy_colors)  # 总预测图
-
+    
     plt.figure(figsize=(8, 8))
     plt.imshow(gt_label.astype(int), cmap='nipy_spectral')
-    # plt.colorbar(label='Class ID')  # 显示颜色条以标识类别
     plt.axis('off')
     temp_image_path = '../final/res_recorder/sa_gt_label'
     plt.savefig(temp_image_path, dpi=1800, bbox_inches='tight', pad_inches=0)
